@@ -1,0 +1,27 @@
+services:
+  db:
+    image: postgis/postgis:15-3.3
+    container_name: hack_db
+    environment:
+      POSTGRES_DB: datasaur
+      POSTGRES_USER: postgres
+      POSTGRES_PASSWORD: postgres
+    ports:
+      - "5432:5432"
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U postgres"]
+      interval: 5s
+      retries: 5
+      timeout: 5s
+
+  app:
+    build: .
+    container_name: hack_app
+    depends_on:
+      db:
+        condition: service_healthy
+    ports:
+      - "8000:8000"
+    environment:
+      DATABASE_URL: postgresql://postgres:postgres@db:5432/datasaur
+      DGIS_KEY: ${DGIS_KEY}
