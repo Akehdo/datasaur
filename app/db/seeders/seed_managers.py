@@ -1,5 +1,5 @@
 from sqlalchemy.orm import Session
-from app.db.models import Manager, Office
+from app.modules.tickets.models import Manager, Office
 
 
 MANAGERS = [

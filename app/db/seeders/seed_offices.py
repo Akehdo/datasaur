@@ -1,9 +1,8 @@
 from geoalchemy2.shape import from_shape
 from shapely import wkb
 from sqlalchemy.orm import Session
-from sqlalchemy import text
 
-from app.db.models import Office
+from app.modules.tickets.models import Office
 
 OFFICES = [
     ( "Актау", "Актау, 17-й микрорайон 22, Kazakhstan", "0101000020E610000013807F4A95435240CAC51858C71B4940"),

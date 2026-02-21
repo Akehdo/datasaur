@@ -1,4 +1,4 @@
-from app.db.models import RoundRobinState, Manager, Office
+from app.modules.tickets.models import RoundRobinState, Manager, Office
 
 
 _FOREIGN_OFFICES = ['Астана', 'Алматы']

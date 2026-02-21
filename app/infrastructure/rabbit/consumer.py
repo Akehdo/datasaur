@@ -5,9 +5,9 @@ import sys
 from datetime import datetime
 
 from app.core.db import SessionLocal
-from app.db.models import Ticket
-from app.pipeline.llm import analyze_ticket
-from app.pipeline.assign import assign_ticket
+from app.modules.assignment.service import assign_ticket
+from app.modules.tickets.models import Ticket
+from app.infrastructure.ai.ollama_client import analyze_ticket
 import requests
 
 

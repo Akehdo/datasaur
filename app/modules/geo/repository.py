@@ -1,7 +1,6 @@
-from sqlalchemy.orm import Session
 from sqlalchemy import text
 
-def find_nearest_office(db: Session, lat: float, lon: float):
+def find_nearest_office(db, lat: float, lon: float):
     sql = text("""
         SELECT city, address,
                ST_Distance(

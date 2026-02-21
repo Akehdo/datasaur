@@ -73,7 +73,7 @@ services:
       OLLAMA_URL: http://ollama:11434/api/generate
       RABBIT_URL: amqp://guest:guest@rabbitmq:5672/
       DGIS_KEY: ${DGIS_KEY}
-    command: ["python", "-m", "app.pipeline.consumer"]
+    command: ["python", "-m", "app.infrastructure.rabbit.consumer"]
     restart: always
 
 volumes:
