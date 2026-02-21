@@ -1,0 +1,368 @@
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>F.I.R.E. Challenge — Dashboard</title>
+<script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.0/dist/chart.umd.min.js"></script>
+<style>
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+  body { font-family: 'Segoe UI', sans-serif; background: #f0f2f5; color: #222; }
+
+  header {
+    background: linear-gradient(135deg, #1a237e, #283593);
+    color: #fff; padding: 16px 24px;
+    display: flex; align-items: center; gap: 16px;
+  }
+  header h1 { font-size: 1.4rem; font-weight: 600; }
+  header .sub { font-size: .85rem; opacity: .75; margin-top: 2px; }
+
+  .stats-bar {
+    display: flex; gap: 12px; padding: 16px 24px; flex-wrap: wrap;
+    background: #fff; border-bottom: 1px solid #e0e0e0;
+  }
+  .stat-card {
+    background: #f5f7ff; border-radius: 8px; padding: 10px 18px;
+    border-left: 4px solid #3f51b5; min-width: 120px;
+  }
+  .stat-card .val { font-size: 1.6rem; font-weight: 700; color: #1a237e; }
+  .stat-card .lbl { font-size: .75rem; color: #666; margin-top: 2px; }
+
+  .main { display: grid; grid-template-columns: 320px 1fr; gap: 16px; padding: 16px 24px; }
+
+  /* Sidebar filters */
+  .sidebar { display: flex; flex-direction: column; gap: 12px; }
+  .card {
+    background: #fff; border-radius: 10px; padding: 16px;
+    box-shadow: 0 1px 4px rgba(0,0,0,.08);
+  }
+  .card h3 { font-size: .85rem; font-weight: 600; color: #555; margin-bottom: 10px; text-transform: uppercase; }
+  select, input[type=range] { width: 100%; margin-top: 4px; padding: 6px; border: 1px solid #ddd; border-radius: 6px; }
+  label { font-size: .82rem; color: #444; display: block; margin-top: 8px; }
+  button.apply {
+    width: 100%; margin-top: 12px; padding: 8px;
+    background: #3f51b5; color: #fff; border: none;
+    border-radius: 6px; cursor: pointer; font-size: .88rem;
+  }
+  button.apply:hover { background: #303f9f; }
+
+  /* Charts row */
+  .charts-row { display: grid; grid-template-columns: 1fr 1fr 1fr; gap: 12px; margin-bottom: 16px; }
+  .chart-card { background: #fff; border-radius: 10px; padding: 14px; box-shadow: 0 1px 4px rgba(0,0,0,.08); }
+  .chart-card h4 { font-size: .8rem; color: #666; margin-bottom: 8px; text-transform: uppercase; }
+
+  /* Table */
+  .table-card { background: #fff; border-radius: 10px; box-shadow: 0 1px 4px rgba(0,0,0,.08); overflow: hidden; }
+  .table-card h3 { padding: 14px 16px; font-size: .85rem; color: #555; border-bottom: 1px solid #eee; text-transform: uppercase; }
+  table { width: 100%; border-collapse: collapse; font-size: .83rem; }
+  th { background: #f5f7ff; padding: 10px 12px; text-align: left; color: #444; font-weight: 600; border-bottom: 2px solid #e0e0e0; }
+  td { padding: 9px 12px; border-bottom: 1px solid #f0f0f0; vertical-align: top; }
+  tr:hover td { background: #f9f9ff; cursor: pointer; }
+
+  .badge {
+    display: inline-block; padding: 2px 8px; border-radius: 12px;
+    font-size: .75rem; font-weight: 600;
+  }
+  .badge-type    { background: #e8eaf6; color: #3f51b5; }
+  .badge-VIP     { background: #fff8e1; color: #f57f17; }
+  .badge-Mass    { background: #e8f5e9; color: #2e7d32; }
+  .badge-Priority{ background: #fce4ec; color: #c62828; }
+  .badge-RU      { background: #e3f2fd; color: #1565c0; }
+  .badge-KZ      { background: #e8f5e9; color: #2e7d32; }
+  .badge-ENG     { background: #fff3e0; color: #e65100; }
+  .prio-high { color: #c62828; font-weight: 700; }
+  .prio-mid  { color: #f57f17; font-weight: 600; }
+  .prio-low  { color: #388e3c; }
+
+  /* Modal */
+  .modal-overlay {
+    display: none; position: fixed; inset: 0;
+    background: rgba(0,0,0,.45); z-index: 100;
+    align-items: center; justify-content: center;
+  }
+  .modal-overlay.open { display: flex; }
+  .modal {
+    background: #fff; border-radius: 12px; width: 640px; max-width: 95vw;
+    max-height: 90vh; overflow-y: auto; padding: 24px;
+    box-shadow: 0 8px 32px rgba(0,0,0,.2);
+  }
+  .modal h2 { font-size: 1.1rem; margin-bottom: 16px; color: #1a237e; }
+  .modal-close { float: right; cursor: pointer; font-size: 1.4rem; color: #888; background: none; border: none; }
+  .modal dl { display: grid; grid-template-columns: 160px 1fr; gap: 8px 12px; }
+  .modal dt { font-size: .8rem; color: #888; font-weight: 600; }
+  .modal dd { font-size: .85rem; word-break: break-word; }
+  .modal .desc-box {
+    margin-top: 14px; background: #f5f7ff; border-radius: 8px;
+    padding: 12px; font-size: .83rem; line-height: 1.5; white-space: pre-wrap;
+  }
+
+  /* AI Assistant */
+  .ai-card { background: #fff; border-radius: 10px; padding: 16px; box-shadow: 0 1px 4px rgba(0,0,0,.08); margin-top: 16px; }
+  .ai-card h3 { font-size: .85rem; color: #555; margin-bottom: 10px; text-transform: uppercase; }
+  .ai-row { display: flex; gap: 8px; }
+  .ai-row input {
+    flex: 1; padding: 8px 12px; border: 1px solid #ddd;
+    border-radius: 6px; font-size: .88rem;
+  }
+  .ai-row button {
+    padding: 8px 18px; background: #1a237e; color: #fff;
+    border: none; border-radius: 6px; cursor: pointer;
+  }
+  .ai-row button:hover { background: #283593; }
+  #ai-result { margin-top: 12px; }
+  #ai-chart-title { font-size: .9rem; font-weight: 600; color: #333; margin-bottom: 8px; }
+</style>
+</head>
+<body>
+
+<header>
+  <div>
+    <h1>F.I.R.E. Challenge — Dashboard</h1>
+    <div class="sub">Freedom Broker · Автоматическое распределение обращений</div>
+  </div>
+</header>
+
+<div class="stats-bar" id="stats-bar">
+  <div class="stat-card"><div class="val" id="s-total">—</div><div class="lbl">Всего обращений</div></div>
+  <div class="stat-card"><div class="val" id="s-avg">—</div><div class="lbl">Средний приоритет</div></div>
+  <div class="stat-card"><div class="val" id="s-vip">—</div><div class="lbl">VIP + Priority</div></div>
+  <div class="stat-card"><div class="val" id="s-offices">—</div><div class="lbl">Офисов задействовано</div></div>
+</div>
+
+<div class="main">
+  <!-- Sidebar -->
+  <div class="sidebar">
+    <div class="card">
+      <h3>Фильтры</h3>
+      <label>Офис
+        <select id="f-office"><option value="">Все офисы</option></select>
+      </label>
+      <label>Тип обращения
+        <select id="f-type">
+          <option value="">Все типы</option>
+          <option>Жалоба</option>
+          <option>Смена данных</option>
+          <option>Консультация</option>
+          <option>Претензия</option>
+          <option>Неработоспособность приложения</option>
+          <option>Мошеннические действия</option>
+          <option>Спам</option>
+        </select>
+      </label>
+      <label>Язык
+        <select id="f-lang">
+          <option value="">Все языки</option>
+          <option>RU</option><option>KZ</option><option>ENG</option>
+        </select>
+      </label>
+      <label>Приоритет от <span id="pmin-lbl">1</span> до <span id="pmax-lbl">10</span></label>
+      <input type="range" id="f-pmin" min="1" max="10" value="1"> мин
+      <input type="range" id="f-pmax" min="1" max="10" value="10"> макс
+      <button class="apply" onclick="loadTickets()">Применить</button>
+    </div>
+
+    <!-- Charts -->
+    <div class="card">
+      <h4>По типу</h4>
+      <canvas id="chart-type" height="180"></canvas>
+    </div>
+    <div class="card">
+      <h4>По языку</h4>
+      <canvas id="chart-lang" height="140"></canvas>
+    </div>
+    <div class="card">
+      <h4>По тональности</h4>
+      <canvas id="chart-tone" height="140"></canvas>
+    </div>
+  </div>
+
+  <!-- Main content -->
+  <div>
+    <div class="card" style="margin-bottom:12px;">
+      <h4>По офисам</h4>
+      <canvas id="chart-office" height="100"></canvas>
+    </div>
+
+    <div class="table-card">
+      <h3>Обращения (<span id="count">0</span>)</h3>
+      <table>
+        <thead>
+          <tr>
+            <th>GUID</th><th>Сегмент</th><th>Тип</th>
+            <th>Приоритет</th><th>Язык</th><th>Офис</th><th>Менеджер</th>
+          </tr>
+        </thead>
+        <tbody id="tbody"></tbody>
+      </table>
+    </div>
+
+    <!-- AI Assistant -->
+    <div class="ai-card">
+      <h3>✦ AI-ассистент (Star Task)</h3>
+      <div class="ai-row">
+        <input id="ai-input" type="text" placeholder='Например: "Покажи распределение по офисам"'>
+        <button onclick="askAI()">Спросить</button>
+      </div>
+      <div id="ai-result">
+        <div id="ai-chart-title"></div>
+        <canvas id="ai-chart" style="max-height:280px;"></canvas>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- Modal -->
+<div class="modal-overlay" id="modal">
+  <div class="modal">
+    <button class="modal-close" onclick="closeModal()">✕</button>
+    <h2 id="m-guid"></h2>
+    <dl id="m-details"></dl>
+    <div class="desc-box" id="m-desc"></div>
+    <div class="desc-box" style="margin-top:8px;background:#f0fff4;" id="m-rec"></div>
+  </div>
+</div>
+
+<script>
+const COLORS = ['#3f51b5','#e91e63','#ff9800','#4caf50','#9c27b0','#00bcd4','#ff5722'];
+
+let charts = {};
+let aiChart = null;
+
+function makeChart(id, type, labels, data, opts={}) {
+  if (charts[id]) charts[id].destroy();
+  const ctx = document.getElementById(id).getContext('2d');
+  charts[id] = new Chart(ctx, {
+    type, data: {
+      labels,
+      datasets: [{ data, backgroundColor: COLORS, borderWidth: 1 }]
+    },
+    options: { plugins: { legend: { position: type==='bar'?'top':'right', labels:{font:{size:11}} } },
+               ...opts }
+  });
+}
+
+async function loadStats() {
+  const s = await fetch('/api/stats').then(r => r.json());
+
+  document.getElementById('s-total').textContent = s.total;
+  document.getElementById('s-avg').textContent = s.priority_avg ? s.priority_avg.toFixed(1) : '—';
+  const vip = (s.by_segment?.VIP||0) + (s.by_segment?.Priority||0);
+  document.getElementById('s-vip').textContent = vip;
+  document.getElementById('s-offices').textContent = Object.keys(s.by_office||{}).length;
+
+  // Populate office filter
+  const sel = document.getElementById('f-office');
+  (s.offices||[]).forEach(o => {
+    const opt = document.createElement('option');
+    opt.value = opt.textContent = o;
+    sel.appendChild(opt);
+  });
+
+  // Charts
+  const bt = s.by_type||{};
+  makeChart('chart-type', 'doughnut', Object.keys(bt), Object.values(bt));
+
+  const bl = s.by_language||{};
+  makeChart('chart-lang', 'pie', Object.keys(bl), Object.values(bl));
+
+  const bn = s.by_tone||{};
+  makeChart('chart-tone', 'pie', Object.keys(bn), Object.values(bn));
+
+  const bo = s.by_office||{};
+  makeChart('chart-office', 'bar', Object.keys(bo), Object.values(bo), {
+    plugins:{ legend:{display:false} },
+    scales:{ y:{beginAtZero:true, ticks:{stepSize:1}} }
+  });
+}
+
+async function loadTickets() {
+  const office = document.getElementById('f-office').value;
+  const type   = document.getElementById('f-type').value;
+  const lang   = document.getElementById('f-lang').value;
+  const pmin   = document.getElementById('f-pmin').value;
+  const pmax   = document.getElementById('f-pmax').value;
+
+  const params = new URLSearchParams({ priority_min: pmin, priority_max: pmax, limit: 200 });
+  if (office) params.set('office', office);
+  if (type)   params.set('type', type);
+  if (lang)   params.set('language', lang);
+
+  const data = await fetch('/api/tickets?' + params).then(r => r.json());
+  document.getElementById('count').textContent = data.total;
+
+  const tbody = document.getElementById('tbody');
+  tbody.innerHTML = '';
+  (data.items||[]).forEach(t => {
+    const tr = document.createElement('tr');
+    tr.onclick = () => openModal(t.id);
+    const pc = t.priority >= 8 ? 'prio-high' : t.priority >= 5 ? 'prio-mid' : 'prio-low';
+    tr.innerHTML = `
+      <td style="font-size:.75rem;color:#888;">${t.guid?.slice(0,8)}...</td>
+      <td><span class="badge badge-${t.segment}">${t.segment}</span></td>
+      <td><span class="badge badge-type">${t.type||'—'}</span></td>
+      <td class="${pc}">${t.priority}</td>
+      <td><span class="badge badge-${t.language}">${t.language}</span></td>
+      <td>${t.office||'—'}</td>
+      <td style="font-size:.8rem;">${t.manager||'—'}</td>
+    `;
+    tbody.appendChild(tr);
+  });
+}
+
+async function openModal(id) {
+  const t = await fetch(`/api/tickets/${id}`).then(r => r.json());
+  document.getElementById('m-guid').textContent = t.guid;
+  const dl = document.getElementById('m-details');
+  const rows = [
+    ['Сегмент', t.segment], ['Тип', t.type], ['Тональность', t.tone],
+    ['Приоритет', t.priority + '/10'], ['Язык', t.language],
+    ['Город', t.city || '—'], ['Страна', t.country || '—'],
+    ['Назначен офис', t.office], ['Менеджер', t.manager],
+    ['Должность', t.manager_position], ['Навыки менеджера', t.manager_skills],
+    ['Обработан', t.processed_at ? new Date(t.processed_at).toLocaleString('ru') : '—'],
+  ];
+  dl.innerHTML = rows.map(([k,v]) => `<dt>${k}</dt><dd>${v||'—'}</dd>`).join('');
+  document.getElementById('m-desc').textContent = t.description || '';
+  document.getElementById('m-rec').textContent = '💡 ' + (t.recommendation || t.summary || '');
+  document.getElementById('modal').classList.add('open');
+}
+
+function closeModal() {
+  document.getElementById('modal').classList.remove('open');
+}
+document.getElementById('modal').addEventListener('click', e => {
+  if (e.target === document.getElementById('modal')) closeModal();
+});
+
+// Slider labels
+document.getElementById('f-pmin').oninput = e => document.getElementById('pmin-lbl').textContent = e.target.value;
+document.getElementById('f-pmax').oninput = e => document.getElementById('pmax-lbl').textContent = e.target.value;
+
+async function askAI() {
+  const q = document.getElementById('ai-input').value.trim();
+  if (!q) return;
+  document.getElementById('ai-chart-title').textContent = 'Генерирую...';
+  try {
+    const res = await fetch('/api/ask', {
+      method: 'POST',
+      headers: {'Content-Type': 'application/json'},
+      body: JSON.stringify({ question: q })
+    }).then(r => r.json());
+
+    document.getElementById('ai-chart-title').textContent = res.title || '';
+    if (res.config && Object.keys(res.config).length > 0) {
+      if (aiChart) aiChart.destroy();
+      const ctx = document.getElementById('ai-chart').getContext('2d');
+      aiChart = new Chart(ctx, res.config);
+    }
+  } catch(e) {
+    document.getElementById('ai-chart-title').textContent = 'Ошибка: ' + e.message;
+  }
+}
+
+// Init
+loadStats();
+loadTickets();
+</script>
+</body>
+</html>
