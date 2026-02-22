@@ -1,13 +1,12 @@
 import os
 import json
-import openai
+import google as genai
 
-# Убедись, что OPENAI_API_KEY задан в окружении
-openai.api_key = os.getenv("OPENAI_API_KEY")
+genai.configure(api_key=os.getenv("GEMINI_API_KEY"))
 
-client = openai.OpenAI()
+MODEL = "gemini-2.0-flash"
 
-MODEL = "gpt-4"  # или gpt-3.5-turbo
+client = genai.Client()  # Инициализация клиента один раз при загрузке модуля
 
 VALID_TYPES = {
     'Жалоба', 'Смена данных', 'Консультация', 'Претензия',
@@ -18,7 +17,7 @@ VALID_LANGS = {'RU', 'KZ', 'ENG'}
 
 
 def analyze_ticket(desc: str, segment: str, country: str, region: str) -> dict:
-    """Анализирует тикет через OpenAI GPT API и возвращает словарь с полями анализа."""
+    """Анализирует тикет через Gemini API и возвращает словарь с полями анализа."""
 
     prompt = (
         "Ты классификатор обращений службы поддержки Freedom Broker.\n"
@@ -48,7 +47,7 @@ def analyze_ticket(desc: str, segment: str, country: str, region: str) -> dict:
 
         "Язык — определяй ТОЛЬКО по тексту обращения, не по стране:\n"
         "RU — если текст на русском\n"
-        "KZ — если текст на казахском\n"
+        "KZ — если текст на казахском (қ, ң, ү, ғ, ө, ә, і, ұ)\n"
         "ENG — если текст на английском\n\n"
 
         "Примеры:\n"
@@ -69,18 +68,15 @@ def analyze_ticket(desc: str, segment: str, country: str, region: str) -> dict:
     )
 
     try:
-        response = client.responses.create(
+        response = client.models.generate_content(
             model=MODEL,
-            input=[{"role": "user", "content": prompt}],
-            temperature=0
-        )
-        raw_text = response.output_text.strip()
+            contents=prompt)
+        raw_text = response.text.strip()
         data = json.loads(raw_text)
     except Exception as e:
         print(f"Error processing LLM response: {e}")
         return _fallback(desc)
 
-    # Валидация и нормализация полей
     ticket_type = data.get('тип', '')
     if ticket_type not in VALID_TYPES:
         ticket_type = 'Консультация'
