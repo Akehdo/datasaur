@@ -16,19 +16,6 @@ services:
     volumes:
       - pgdata:/var/lib/postgresql/data
 
-  ollama:
-    image: ollama/ollama:latest
-    container_name: hack_ollama
-    ports:
-      - "11434:11434"
-    volumes:
-      - ollama:/root/.ollama
-    entrypoint: ["/bin/sh", "-c", "ollama serve & sleep 5 && ollama pull llama3.2 && wait"]
-    healthcheck:
-      test: ["CMD-SHELL", "ollama list | grep -q llama3.2 || exit 1"]
-      interval: 10s
-      retries: 30
-      timeout: 5s
 
   rabbitmq:
     image: rabbitmq:3-management
@@ -51,15 +38,13 @@ services:
     depends_on:
       db:
         condition: service_healthy
-      ollama:
-        condition: service_healthy
       rabbitmq:
         condition: service_healthy
     ports:
       - "8000:8000"
     environment:
       DATABASE_URL: ${DATABASE_URL}
-      OLLAMA_URL: http://ollama:11434/api/generate
+      GEMINI_API_KEY: ${GEMINI_API_KEY}
       RABBIT_URL: amqp://guest:guest@rabbitmq:5672/
       DGIS_KEY: ${DGIS_KEY}
 
@@ -69,14 +54,12 @@ services:
     depends_on:
       db:
         condition: service_healthy
-      ollama:
-        condition: service_healthy
       rabbitmq:
         condition: service_healthy
     environment:
       API_URL: http://app:8000
       DATABASE_URL: ${DATABASE_URL}
-      OLLAMA_URL: http://ollama:11434/api/generate
+      GEMINI_API_KEY: ${GEMINI_API_KEY}
       RABBIT_URL: amqp://guest:guest@rabbitmq:5672/
       DGIS_KEY: ${DGIS_KEY}
     command: ["python", "-m", "app.infrastructure.rabbit.consumer"]

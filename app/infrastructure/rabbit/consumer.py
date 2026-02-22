@@ -137,6 +137,7 @@ def callback(ch, method, properties, body):
         ticket.language = ai.get("language")
         ticket.summary = ai.get("summary")
         ticket.recommendation = ai.get("recommendation")
+        ticket.tone = ai.get("tone")
         ticket.status = "DONE"
 
         session.commit()
