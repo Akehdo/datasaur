@@ -8,8 +8,8 @@ from app.core.db import SessionLocal
 from app.modules.assignment.service import assign_ticket
 from app.modules.tickets.models import Ticket
 from app.infrastructure.ai.ollama_client import analyze_ticket
-import requests
 
+import requests
 
 sys.stdout.reconfigure(line_buffering=True)
 
@@ -34,68 +34,102 @@ def nearest_office_via_api(address: str):
         log(f"Nearest office response: {data}")
         return data
     except Exception as e:
-        log(f"API error: {e}")
+        log(f"GEO API ERROR: {e}")
         return None
+
+
+def safe_join_address(ticket: Ticket) -> str:
+    return ", ".join(
+        filter(None, [
+            ticket.city,
+            ticket.street,
+            ticket.house,
+            ticket.region,
+            ticket.country
+        ])
+    )
 
 
 def callback(ch, method, properties, body):
     log(f"Received message: {body}")
 
-    data = json.loads(body)
-    ticket_id = data["ticket_id"]
-
     session = SessionLocal()
 
     try:
+        data = json.loads(body)
+        ticket_id = data.get("ticket_id")
+
+        if not ticket_id:
+            log("No ticket_id in message. ACK.")
+            ch.basic_ack(delivery_tag=method.delivery_tag)
+            return
+
         ticket = session.get(Ticket, ticket_id)
-        log(f"Loaded ticket: {ticket_id}")
 
         if not ticket:
             log("Ticket not found. ACK.")
             ch.basic_ack(delivery_tag=method.delivery_tag)
             return
 
-        if ticket.status == "DONE":
-            log("Ticket already DONE. ACK.")
+        if ticket.status in ["DONE", "FAILED"]:
+            log(f"Ticket already {ticket.status}. ACK.")
             ch.basic_ack(delivery_tag=method.delivery_tag)
             return
 
-        # блокируем тикет
+        # -----------------------------
+        # LOCK TICKET
+        # -----------------------------
         ticket.status = "PROCESSING"
         session.commit()
         log("Ticket marked as PROCESSING")
 
-        # 🔥 LLM
-        log("Starting LLM analysis...")
-        ai = analyze_ticket(
-            desc=ticket.description,
-            segment=ticket.segment,
-            country=ticket.country,
-            region=ticket.region,
-        )
-        log(f"LLM result: {ai}")
+        # -----------------------------
+        # LLM
+        # -----------------------------
+        try:
+            log("Starting LLM analysis...")
+            ai = analyze_ticket(
+                desc=ticket.description,
+                segment=ticket.segment,
+                country=ticket.country,
+                region=ticket.region,
+            )
+            log(f"LLM result: {ai}")
+        except Exception as e:
+            raise Exception(f"AI_FAILED: {e}")
 
-        # 🔥 Адрес
-        full_address = ", ".join(
-            [ticket.city, ticket.street, ticket.house, ticket.region, ticket.country]
-        )
+        # -----------------------------
+        # GEO
+        # -----------------------------
+        full_address = safe_join_address(ticket)
+
+        if not full_address:
+            raise Exception("ADDRESS_EMPTY")
 
         nearest = nearest_office_via_api(full_address)
 
         if not nearest:
-            log("No nearest office found. Marking FAILED.")
-            ticket.status = "FAILED"
-            session.commit()
-            ch.basic_ack(delivery_tag=method.delivery_tag)
-            return
+            raise Exception("GEO_FAILED")
 
-        office_city = nearest["city"]
+        office_city = nearest.get("city")
+        if not office_city:
+            raise Exception("OFFICE_CITY_MISSING")
+
         log(f"Assigning ticket to office: {office_city}")
 
-        manager, office = assign_ticket(
-            session, ticket, forced_office=office_city
-        )
+        # -----------------------------
+        # ASSIGN
+        # -----------------------------
+        try:
+            manager, office = assign_ticket(
+                session, ticket, forced_office=office_city
+            )
+        except Exception as e:
+            raise Exception(f"ASSIGN_FAILED: {e}")
 
+        # -----------------------------
+        # SAVE RESULT
+        # -----------------------------
         ticket.assigned_manager_id = manager.id
         ticket.assigned_office = office
         ticket.ticket_type = ai.get("ticket_type")
@@ -103,18 +137,29 @@ def callback(ch, method, properties, body):
         ticket.language = ai.get("language")
         ticket.summary = ai.get("summary")
         ticket.recommendation = ai.get("recommendation")
-
         ticket.status = "DONE"
+
         session.commit()
 
-        ch.basic_ack(delivery_tag=method.delivery_tag)
-
         log(f"Ticket {ticket_id} processed successfully.")
+
+        ch.basic_ack(delivery_tag=method.delivery_tag)
 
     except Exception as e:
         session.rollback()
         log(f"ERROR during processing: {e}")
-        # не ack → сообщение вернётся в очередь
+
+        try:
+            ticket = session.get(Ticket, ticket_id)
+            if ticket:
+                ticket.status = "FAILED"
+                ticket.error_message = str(e)
+                session.commit()
+        except Exception as inner:
+            log(f"Failed to update ticket status: {inner}")
+
+        ch.basic_ack(delivery_tag=method.delivery_tag)
+
     finally:
         session.close()
 
